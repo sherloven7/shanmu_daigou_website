@@ -99,6 +99,15 @@ header.shop p{margin:0;color:var(--muted)}
 .seg button{flex:1;min-width:120px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px;font-weight:500}
 .seg button[aria-pressed="true"]{border-color:var(--brand);background:var(--tint);color:var(--brand)}
 .qr{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.qr .qr-tap{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;padding:0;cursor:zoom-in}
+.qr .qr-tap span{font-size:13px;color:var(--brand);font-weight:700}
+.qrview{position:fixed;inset:0;z-index:20;background:rgba(10,20,18,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.qrview .qv-amt{color:#fff;font-size:15px;text-align:center}
+.qrview .qv-amt b{display:block;font-size:40px;line-height:1.1;color:#fdba74;font-family:var(--font-num)}
+.qrview img{width:min(86vw,420px);max-height:62vh;object-fit:contain;background:#fff;border-radius:12px;-webkit-touch-callout:default;user-select:auto}
+.qrview .qv-tip{color:#e4eeeb;font-size:15px;text-align:center;max-width:420px;line-height:1.6}
+.qrview .qv-close{background:#fff;color:#16302b;border:0;border-radius:999px;padding:10px 28px;font-size:15px;font-weight:700}
 .qr img{width:220px;max-width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
 .qr .amt{font-size:34px;font-weight:700;color:var(--price);line-height:1}
 .qr .noqr{border:1px dashed var(--line);border-radius:10px;padding:24px 16px;color:var(--muted);width:100%}
@@ -158,6 +167,20 @@ const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
 function lines(){return Object.entries(cart).map(([id,q])=>({p:byId(id),q})).filter(x=>x.p&&x.p.on&&x.q>0)}
 function totals(){const ls=lines();const goods=ls.reduce((a,x)=>a+x.p.price*x.q,0);const count=ls.reduce((a,x)=>a+x.q,0);
   const fee=count?Number(S.shop.fee)||0:0;return{ls,goods,count,fee,pay:goods+fee}}
+function showQr(){
+  const T=totals();const qr=S.qr[co.pay];if(!qr)return;
+  const payName=co.pay==='wx'?'微信':'支付宝';
+  const tip=co.pay==='wx'?(isWeChat?'长按上面的收款码，选“识别图中二维码”付款':'长按收款码保存到相册，再打开微信扫一扫，从相册选这张图付款')
+    :'长按收款码保存到相册，再打开支付宝扫一扫，从相册选这张图付款';
+  const v=document.createElement('div');v.className='qrview';v.setAttribute('role','dialog');v.setAttribute('aria-label',payName+'收款码');
+  v.innerHTML=`<div class="qv-amt">请向店主${payName}付款<b>¥${money(T.pay)}</b></div>
+    <img src="${qr}" alt="店主${payName}收款码">
+    <div class="qv-tip">${tip}</div>
+    <button type="button" class="qv-close">关闭</button>`;
+  v.addEventListener('click',e=>{if(e.target===v||e.target.closest('.qv-close'))v.remove()});
+  document.body.appendChild(v);v.querySelector('.qv-close').focus();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const v=document.querySelector('.qrview');if(v)v.remove()}});
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
 function setQty(id,d){cart[id]=Math.max(0,Math.min(99,(cart[id]||0)+d));if(!cart[id])delete cart[id];persist();render()}
 
@@ -234,7 +257,7 @@ function checkoutView(){
       <div class="qr">
         <span style="color:var(--muted);font-size:13px">请支付</span>
         <span class="amt num">¥${money(T.pay)}</span>
-        ${qr?`<img src="${qr}" alt="店主${payName}收款码">
+        ${qr?`<button type="button" class="qr-tap" data-act="bigqr" aria-label="放大收款码"><img src="${qr}" alt="店主${payName}收款码"><span>点击放大收款码</span></button>
           <span style="color:var(--muted);font-size:13px">${scanTip}，金额填 ¥${money(T.pay)}</span>`
           :`<div class="noqr">店主还没放收款码，请先提交订单，店主会联系你付款。</div>`}
       </div>
@@ -408,6 +431,7 @@ app.addEventListener('click',async e=>{
     case 'addProduct':draft.products.push({id:'p'+Date.now().toString(36),name:'',spec:'',price:0,cat:draft.cats[0]||'其他',on:true,sample:false});saveDraft();render();
       setTimeout(()=>{const ins=app.querySelectorAll('[data-k="name"]');ins[ins.length-1]?.focus()},0);break;
     case 'export':exportFile();break;
+    case 'bigqr':showQr();break;
   }
 });
 
